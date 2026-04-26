@@ -1,0 +1,14 @@
+[Unit]
+Description=Sync local folder with iCloud Drive using rclone bisync
+Documentation=https://rclone.org/bisync/
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/linanw/.local/state/icloud-sync
+ExecStart=/usr/bin/env python3 /home/linanw/.local/share/icloud-sync/icloud-bisync.py sync --config /home/linanw/.config/icloud-sync/config.json
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+TimeoutStartSec=1h

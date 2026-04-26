@@ -1,0 +1,18 @@
+{
+  "local_path": "~/#icloud_sync",
+  "icloud_path": "icloud:#icloud_sync",
+  "rclone_bin": "rclone",
+  "notifications": true,
+  "bisync_flags": [
+    "--create-empty-src-dirs",
+    "--compare",
+    "size,modtime",
+    "--resilient",
+    "--recover",
+    "--max-lock",
+    "2m",
+    "--conflict-resolve",
+    "newer",
+    "--verbose"
+  ]
+}
