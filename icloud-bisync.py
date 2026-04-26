@@ -10,12 +10,15 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
 REPO_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG = REPO_DIR / "config.json"
 LOCK_NAME = "sync.lock"
+LAST_RUN_NAME = "last-run.json"
+PATH_SUPPRESS_SECONDS = 30
 
 
 def expand_local_path(value: str) -> str:
@@ -92,21 +95,68 @@ def notify(config: dict, title: str, message: str, *, urgency: str = "normal") -
 
 
 def lock_path() -> Path:
+    return state_dir() / LOCK_NAME
+
+
+def state_dir() -> Path:
     state_home = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
     path = state_home / "icloud-sync"
     path.mkdir(parents=True, exist_ok=True)
-    return path / LOCK_NAME
+    return path
 
 
-def acquire_lock():
-    handle = lock_path().open("w", encoding="utf-8")
+def last_run_path() -> Path:
+    return state_dir() / LAST_RUN_NAME
+
+
+def record_run(trigger: str, changed: bool) -> None:
+    payload = {
+        "trigger": trigger,
+        "changed": changed,
+        "finished_at": time.time(),
+    }
+    last_run_path().write_text(json.dumps(payload), encoding="utf-8")
+
+
+def should_suppress_path_trigger() -> bool:
+    try:
+        payload = json.loads(last_run_path().read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return False
+
+    if payload.get("trigger") == "path":
+        return False
+
+    try:
+        finished_at = float(payload["finished_at"])
+    except (KeyError, TypeError, ValueError):
+        return False
+
+    return time.time() - finished_at <= PATH_SUPPRESS_SECONDS
+
+
+def read_active_trigger() -> str | None:
+    try:
+        payload = json.loads(lock_path().read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+    trigger = payload.get("trigger")
+    if isinstance(trigger, str):
+        return trigger
+    return None
+
+
+def acquire_lock(trigger: str):
+    handle = lock_path().open("a+", encoding="utf-8")
     try:
         fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
         handle.close()
         return None
 
-    handle.write(str(os.getpid()))
+    handle.seek(0)
+    handle.write(json.dumps({"pid": os.getpid(), "trigger": trigger}))
     handle.truncate()
     handle.flush()
     return handle
@@ -185,9 +235,16 @@ def main() -> int:
 
     print("+ " + " ".join(command), flush=True)
 
-    lock_handle = acquire_lock()
+    if args.trigger == "path" and should_suppress_path_trigger():
+        print("Skipping path trigger caused by a recent sync writing local files.")
+        return 0
+
+    lock_handle = acquire_lock(args.trigger)
     if lock_handle is None:
         print("Another icloud-sync run is already active; skipping this trigger.")
+        if args.trigger == "path" and read_active_trigger() in ("manual", "timer"):
+            return 0
+
         if args.trigger in ("manual", "path"):
             notify(
                 config,
@@ -210,6 +267,8 @@ def main() -> int:
         lock_handle.close()
 
     if return_code == 0:
+        record_run(args.trigger, changed)
+
         if args.trigger == "timer" and not changed:
             return return_code
 

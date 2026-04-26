@@ -136,6 +136,8 @@ Notifications use `notify-send`; install it if your desktop does not already pro
 
 The path watcher, timer, and manual service all share one lock at `~/.local/state/icloud-sync/sync.lock`. If a sync is already running, another trigger exits without starting a second rclone process. Manual and file-watch triggers show an `already running` notification; timer triggers stay quiet.
 
+When a timer or manual sync writes files into the local folder, systemd may notice those writes as local path changes. The wrapper records the last successful sync in `~/.local/state/icloud-sync/last-run.json` and suppresses path-triggered runs for 30 seconds after a non-path sync, so timer/manual syncs do not create extra file-watch notifications.
+
 ## Notes
 
 - The base directories on both sides must exist before bisync runs.
