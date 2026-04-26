@@ -5,7 +5,7 @@ Documentation=https://rclone.org/bisync/
 [Timer]
 OnBootSec=2min
 OnUnitActiveSec=10min
-Unit=icloud-sync.service
+Unit=icloud-sync-timer.service
 Persistent=true
 
 [Install]

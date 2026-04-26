@@ -111,20 +111,30 @@ Check status and logs:
 
 ```sh
 systemctl --user status icloud-sync.path icloud-sync.timer icloud-sync.service
-journalctl --user -u icloud-sync.service -f
+journalctl --user -u icloud-sync.service -u icloud-sync-path.service -u icloud-sync-timer.service -f
 ```
 
 The installed `.path` unit reacts to local changes at the `local_path` configured in `config.json`. The `.timer` runs a regular reconciliation so remote-only changes and deeper nested local changes are also picked up.
 
 ## Notifications
 
-The sync wrapper sends desktop notifications when a sync starts and when it finishes. If sync fails, the finish notification is sent with critical urgency.
+Notification behavior depends on what triggered the sync:
+
+- File watcher: start notification, then finish notification.
+- Timer: no start notification; finish notification only when files changed.
+- Manual `systemctl --user start icloud-sync.service`: start notification, then finish notification that says whether files changed.
+
+Failures always send a critical notification.
 
 Notifications use `notify-send`; install it if your desktop does not already provide it. To disable notifications, set this in `config.json`:
 
 ```json
 "notifications": false
 ```
+
+## Concurrent Triggers
+
+The path watcher, timer, and manual service all share one lock at `~/.local/state/icloud-sync/sync.lock`. If a sync is already running, another trigger exits without starting a second rclone process. Manual and file-watch triggers show an `already running` notification; timer triggers stay quiet.
 
 ## Notes
 

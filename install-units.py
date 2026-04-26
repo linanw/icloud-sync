@@ -72,7 +72,8 @@ def main() -> int:
     local_path = icloud_bisync.expand_local_path(config["local_path"])
     Path(local_path).mkdir(parents=True, exist_ok=True)
 
-    service = f"""[Unit]
+    def service_unit(trigger: str) -> str:
+        return f"""[Unit]
 Description=Sync local folder with iCloud Drive using rclone bisync
 Documentation=https://rclone.org/bisync/
 Wants=network-online.target
@@ -81,7 +82,7 @@ After=network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory={unit_path_value(str(work_dir))}
-ExecStart=/usr/bin/env python3 {unit_path_value(str(installed_script))} sync --config {unit_path_value(str(installed_config))}
+ExecStart=/usr/bin/env python3 {unit_path_value(str(installed_script))} sync --config {unit_path_value(str(installed_config))} --trigger {trigger}
 Nice=10
 IOSchedulingClass=best-effort
 IOSchedulingPriority=7
@@ -95,7 +96,7 @@ Documentation=man:systemd.path(5)
 [Path]
 PathChanged={unit_path_value(local_path)}
 PathModified={unit_path_value(local_path)}
-Unit=icloud-sync.service
+Unit=icloud-sync-path.service
 MakeDirectory=true
 DirectoryMode=0755
 
@@ -110,14 +111,16 @@ Documentation=https://rclone.org/bisync/
 [Timer]
 OnBootSec=2min
 OnUnitActiveSec=10min
-Unit=icloud-sync.service
+Unit=icloud-sync-timer.service
 Persistent=true
 
 [Install]
 WantedBy=timers.target
 """
 
-    write_file(unit_dir / "icloud-sync.service", service)
+    write_file(unit_dir / "icloud-sync.service", service_unit("manual"))
+    write_file(unit_dir / "icloud-sync-path.service", service_unit("path"))
+    write_file(unit_dir / "icloud-sync-timer.service", service_unit("timer"))
     write_file(unit_dir / "icloud-sync.path", path_unit)
     write_file(unit_dir / "icloud-sync.timer", timer)
 

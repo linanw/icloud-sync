@@ -5,7 +5,7 @@ Documentation=man:systemd.path(5)
 [Path]
 PathChanged=/home/linanw/#icloud_sync
 PathModified=/home/linanw/#icloud_sync
-Unit=icloud-sync.service
+Unit=icloud-sync-path.service
 MakeDirectory=true
 DirectoryMode=0755
 
